@@ -23,7 +23,19 @@ from org.acmsl.iac.licdata.infrastructure import PulumiStack
 from .functions_package import FunctionsPackage
 from .functions_deployment_slot import FunctionsDeploymentSlot
 from .licdata_web_app import LicdataWebApp
-from pythoneda.iac.pulumi.azure import AppInsights, AppServicePlan, BlobContainer, ContainerRegistry, DnsRecord, DnsZone, DockerPullRoleAssignment, DockerPullRoleDefinition, FunctionStorageAccount, PublicIpAddress, ResourceGroup
+from pythoneda.iac.pulumi.azure import (
+    AppInsights,
+    AppServicePlan,
+    BlobContainer,
+    ContainerRegistry,
+    DnsRecord,
+    DnsZone,
+    DockerPullRoleAssignment,
+    DockerPullRoleDefinition,
+    FunctionStorageAccount,
+    PublicIpAddress,
+    ResourceGroup,
+)
 
 
 class PulumiAzureStack(PulumiStack):
@@ -302,16 +314,16 @@ class PulumiAzureStack(PulumiStack):
 
         await self.push_docker_image(self._container_registry)
 
-
-    async def build_docker_image(self, resourceGroup: ResourceGroup, containerRegistry: ContainerRegistry):
+    async def build_docker_image(
+        self, resourceGroup: ResourceGroup, containerRegistry: ContainerRegistry
+    ):
         """
         Builds the Docker image.
         """
         # Retrieve the registry credentials
         credentials = Output.all(resourceGroup.name, containerRegistry.name).apply(
             lambda args: containerRegistry.list_registry_credentials(
-                resource_group_name=args[0],
-                registry_name=args[1]
+                resource_group_name=args[0], registry_name=args[1]
             )
         )
 
@@ -328,7 +340,7 @@ class PulumiAzureStack(PulumiStack):
         temp_dir = tempfile.TemporaryDirectory()
 
         # Define the path for the Dockerfile
-        dockerfile_path = os.path.join(temp_dir.name, 'Dockerfile')
+        dockerfile_path = os.path.join(temp_dir.name, "Dockerfile")
 
         # Write the Dockerfile content
         dockerfile_content = """
@@ -361,11 +373,11 @@ EXPOSE 80
         """
 
         # Write the Dockerfile to the temporary directory
-        with open(dockerfile_path, 'w') as dockerfile:
+        with open(dockerfile_path, "w") as dockerfile:
             dockerfile.write(dockerfile_content)
 
         # Define the path for the requirements.txt
-        requirements_txt_path = os.path.join(temp_dir.name, 'requirements.txt')
+        requirements_txt_path = os.path.join(temp_dir.name, "requirements.txt")
 
         # Write the Dockerfile content
         requirements_txt_content = """
@@ -410,17 +422,18 @@ wrapt==1.16.0
 
         image_name = containerRegistry.login_server.apply(
             lambda login_server: f"{login_server}/licdata:latest"
+        )
 
         # Build and push the Docker image
         image = Image(
-            'licdata:latest',
+            "licdata:latest",
             build=temporary_folder,
             image_name=image_name,
             registry=Registry(
                 server=containerRegistry.login_server,
                 username=admin_username,
-                password=admin_password
-            )
+                password=admin_password,
+            ),
         )
 
     async def push_docker_image(self, container_registry: ContainerRegistry):
@@ -430,6 +443,7 @@ wrapt==1.16.0
         :type container_registry: ContainerRegistry
         """
         pass
+
 
 # vim: syntax=python ts=4 sw=4 sts=4 tw=79 sr et
 # Local Variables:
