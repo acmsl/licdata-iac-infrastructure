@@ -19,11 +19,13 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
-from org.acmsl.iac.licdata.infrastructure import PulumiStack
 from .functions_package import FunctionsPackage
 from .functions_deployment_slot import FunctionsDeploymentSlot
 from .licdata_web_app import LicdataWebApp
-from pythoneda.iac.pulumi.azure import (
+from org.acmsl.iac.licdata.infrastructure import PulumiStack
+from pythoneda.shared import EventEmitter
+from pythoneda.shared.artifact.events import DockerImageAvailable, DockerImageRequested
+from pythoneda.shared.iac.pulumi.azure import (
     AppInsights,
     AppServicePlan,
     BlobContainer,
@@ -35,6 +37,7 @@ from pythoneda.iac.pulumi.azure import (
     FunctionStorageAccount,
     PublicIpAddress,
     ResourceGroup,
+    WebApp,
 )
 
 
@@ -76,6 +79,7 @@ class PulumiAzureStack(PulumiStack):
         self._app_insights = None
         self._docker_pull_role_definition = None
         self._docker_pull_role_assignment = None
+        self._web_app = None
 
     @classmethod
     def instantiate(cls):
@@ -212,7 +216,7 @@ class PulumiAzureStack(PulumiStack):
         """
         return self._docker_pull_role_assignment
 
-    async def declare_infrastructure(self):
+    def declare_infrastructure(self):
         """
         Creates the infrastructure.
         """
@@ -275,21 +279,6 @@ class PulumiAzureStack(PulumiStack):
         )
         self._container_registry.create()
 
-        self._web_app = WebApp(
-            self.stack_name,
-            self.project_name,
-            self.location,
-            self._app_insights,
-            self._function_storage_account,
-            self._app_service_plan,
-            self._container_registry,
-            self._resource_group,
-        )
-        self._web_app.create()
-
-        # self._webapp_deployment_slot = FunctionsDeploymentSlot(
-        #     self._function_app, self._resource_group
-        # )
         self._docker_pull_role_definition = DockerPullRoleDefinition(
             self.stack_name,
             self.project_name,
@@ -310,9 +299,40 @@ class PulumiAzureStack(PulumiStack):
         )
         self._docker_pull_role_assignment.create()
 
-        await self.build_docker_image()
+        self.request_docker_image()
 
-        await self.push_docker_image(self._container_registry)
+    async def declare_docker_resources(
+        self,
+        imageName: str,
+        imageVersion: str,
+        imageUrl: str = None,
+    ):
+        """
+        Declares the Docker-dependent infrastructure resources.
+        :param imageName: The name of the Docker image.
+        :type imageName: str
+        :param imageVersion: The version of the Docker image.
+        :type imageVersion: str
+        :param imageUrl: The url of the Docker image.
+        :type imageUrl: str
+        :return: Either a DockerResourcesUpdated or DockerResourcesUpdateFailed event.
+        :rtype: pythoneda.shared.iac.events.DockerResourcesUpdated
+        """
+        login_server = self.container_registry.login_server.apply(lambda name: name)
+
+        self._web_app = WebApp(
+            self.stack_name,
+            self.project_name,
+            self.location,
+            imageName,
+            imageVersion,
+            self._app_insights,
+            self._function_storage_account,
+            self._app_service_plan,
+            self._container_registry,
+            self._resource_group,
+        )
+        self._web_app.create()
 
     async def build_docker_image(
         self, resourceGroup: ResourceGroup, containerRegistry: ContainerRegistry

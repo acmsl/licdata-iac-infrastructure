@@ -20,10 +20,14 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 import abc
-from org.acmsl.iac.licdata.domain import Stack
 from pulumi import automation as auto
 from pulumi.automation.errors import CommandError
-from org.acmsl.iac.licdata.domain import InfrastructureUpdated
+from pythoneda.shared.artifact.events import DockerImageAvailable, DockerImageRequested
+from pythoneda.shared.iac import Stack
+from pythoneda.shared.iac.events import (
+    InfrastructureUpdateFailed,
+    InfrastructureUpdated,
+)
 
 
 class PulumiStack(Stack, abc.ABC):
@@ -54,6 +58,8 @@ class PulumiStack(Stack, abc.ABC):
     async def up(self):
         """
         Brings up the stack.
+        :return: Either an InfrastructureUpdated event or an InfrastructureUpdateFailed.
+        :rtype: pythoneda.shared.iac.events.InfrastructureUpdated
         """
 
         def declare_infrastructure_wrapper():
@@ -83,6 +89,9 @@ class PulumiStack(Stack, abc.ABC):
             )
         except CommandError as e:
             self.__class__.logger().error(f"CommandError: {e}")
+            result = InfrastructureUpdateFailed(
+                self.stack_name, self.project_name, self.location
+            )
 
         return result
 
@@ -90,6 +99,15 @@ class PulumiStack(Stack, abc.ABC):
     def declare_infrastructure(self):
         """
         Declares the infrastructure.
+        """
+        pass
+
+    @abc.abstractmethod
+    async def declare_docker_resources(
+        self, dockerImageAvailable: DockerImageAvailable
+    ):
+        """
+        Declares the Docker resources.
         """
         pass
 

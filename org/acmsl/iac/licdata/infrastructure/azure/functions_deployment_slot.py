@@ -19,11 +19,13 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
-from .resource_group import ResourceGroup
-from .web_app import WebApp
-from .web_app_deployment_slot import WebAppDeploymentSlot
 import pulumi
 import pulumi_azure_native
+from pythoneda.shared.iac.pulumi.azure import (
+    ResourceGroup,
+    WebApp,
+    WebAppDeploymentSlot,
+)
 
 
 class FunctionsDeploymentSlot(WebAppDeploymentSlot):

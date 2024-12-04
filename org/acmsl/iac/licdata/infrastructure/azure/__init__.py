@@ -24,7 +24,7 @@ __path__ = __import__("pkgutil").extend_path(__path__, __name__)
 from .functions_deployment_slot import FunctionsDeploymentSlot
 from .functions_package import FunctionsPackage
 from .licdata_api import LicdataApi
-from .licdata_web_app impont LicdataWebApp
+from .licdata_web_app import LicdataWebApp
 from .pulumi_azure_stack import PulumiAzureStack
 from .pulumi_azure_stack_factory import PulumiAzureStackFactory
 

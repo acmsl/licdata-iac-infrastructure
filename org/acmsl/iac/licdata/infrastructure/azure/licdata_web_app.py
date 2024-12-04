@@ -19,16 +19,19 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
-from .azure_resource import AzureResource
-from .app_insights import AppInsights
-from .app_service_plan import AppServicePlan
-from .container_registry import ContainerRegistry
-from .resource_group import ResourceGroup
-from .storage_account import StorageAccount
 import pulumi
 import pulumi_azure_native
 from pulumi_azure_native.storage import list_storage_account_keys
 from pulumi import Output
+from pythoneda.shared.iac.pulumi.azure import (
+    AzureResource,
+    AppInsights,
+    AppServicePlan,
+    ContainerRegistry,
+    ResourceGroup,
+    StorageAccount,
+    WebApp,
+)
 
 
 class LicdataWebApp(WebApp):
