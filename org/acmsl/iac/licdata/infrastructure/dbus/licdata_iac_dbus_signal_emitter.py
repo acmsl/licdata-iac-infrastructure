@@ -47,7 +47,7 @@ class LicdataIacDbusSignalEmitter(DbusSignalEmitter):
         """
         Creates a new LicdataIacDbusSignalEmitter instance.
         """
-        super().__init__()
+        super().__init__("org.acmsl.iac.licdata.events.infrastructure.dbus")
 
     def signal_emitters(self) -> Dict:
         """
