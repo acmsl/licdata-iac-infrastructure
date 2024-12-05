@@ -285,23 +285,14 @@ class PulumiAzureStack(PulumiStack):
         """
         return DockerImageRequested("licdata")
 
-    async def declare_docker_resources(
+    def declare_docker_resources(
         self,
-        stackName: str,
-        projectName: str,
-        location: str,
         imageName: str,
         imageVersion: str,
         imageUrl: str = None,
     ):
         """
         Declares the Docker-dependent infrastructure resources.
-        :param stackName: The name of the stack.
-        :type stackName: str
-        :param projectName: The name of the project.
-        :type projectName: str
-        :param location: The location.
-        :type location: str
         :param imageName: The name of the Docker image.
         :type imageName: str
         :param imageVersion: The version of the Docker image.
@@ -311,13 +302,7 @@ class PulumiAzureStack(PulumiStack):
         :return: Either a DockerResourcesUpdated or DockerResourcesUpdateFailed event.
         :rtype: pythoneda.shared.iac.events.DockerResourcesUpdated
         """
-        print("****** in declare_docker_resources")
-
-        stack = auto.create_or_select_stack(
-            stack_name=self.stack_name,
-            project_name=self.project_name,
-            program=declare_infrastructure_wrapper,
-        )
+        result = self.declare_infrastructure()
 
         login_server = self.container_registry.login_server.apply(lambda name: name)
 
@@ -327,6 +312,7 @@ class PulumiAzureStack(PulumiStack):
             self.location,
             imageName,
             imageVersion,
+            login_server,
             self._app_insights,
             self._function_storage_account,
             self._app_service_plan,

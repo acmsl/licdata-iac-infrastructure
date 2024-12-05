@@ -22,12 +22,14 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 import abc
 from pulumi import automation as auto
 from pulumi.automation.errors import CommandError
+from pythoneda.shared import Event
 from pythoneda.shared.artifact.events import DockerImageAvailable, DockerImageRequested
 from pythoneda.shared.iac import Stack
 from pythoneda.shared.iac.events import (
     InfrastructureUpdateFailed,
     InfrastructureUpdated,
 )
+from typing import List
 
 
 class PulumiStack(Stack, abc.ABC):
@@ -105,26 +107,31 @@ class PulumiStack(Stack, abc.ABC):
         """
         pass
 
-    async def up_docker_resources(self):
+    async def up_docker_resources(
+        self, imageName: str, imageVersion: str, imageUrl: str
+    ) -> List[Event]:
         """
         Brings up the Docker resources.
-        :return: Either an InfrastructureUpdated event or an InfrastructureUpdateFailed.
-        :rtype: pythoneda.shared.iac.events.InfrastructureUpdated
+        :param imageName: The name of the Docker image.
+        :type imageName: str
+        :param imageVersion: The version of the Docker image.
+        :type imageVersion: str
+        :param imageUrl: The url of the Docker image.
+        :type imageUrl: str
+        :return: The list of resulting events.
+        :rtype: List[Event]
         """
 
         def declare_docker_resources_wrapper():
-            return self.declare_docker_resources()
+            return self.declare_docker_resources(imageName, imageVersion, imageUrl)
 
         result = []
 
-        print(f"selecting stack {self.stack_name} {self.project_name}")
-        stack = auto.select_stack(
+        stack = auto.create_or_select_stack(
             stack_name=self.stack_name,
             project_name=self.project_name,
+            program=declare_docker_resources_wrapper,
         )
-
-        print(f"stack: {stack}")
-        stack.workspace.program = declare_docker_resources_wrapper
 
         # stack.workspace.install_plugin("azure-native", "v2.11.0")
         stack.set_config("azure-native:location", auto.ConfigValue(value=self.location))
@@ -151,9 +158,13 @@ class PulumiStack(Stack, abc.ABC):
         return result
 
     @abc.abstractmethod
-    def declare_docker_resources(self, dockerImageAvailable: DockerImageAvailable):
+    def declare_docker_resources(self, event: DockerImageAvailable) -> List[Event]:
         """
         Declares the Docker resources.
+        :param event: The event.
+        :type event: pythoneda.shared.artifact.events.DockerImageAvailable
+        :return: The list of resulting events.
+        :rtype: List[pythoneda.shared.Event]
         """
         pass
 
