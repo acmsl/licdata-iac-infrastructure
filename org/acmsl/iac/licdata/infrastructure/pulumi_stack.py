@@ -65,7 +65,7 @@ class PulumiStack(Stack, abc.ABC):
         def declare_infrastructure_wrapper():
             return self.declare_infrastructure()
 
-        result = None
+        result = []
 
         stack = auto.create_or_select_stack(
             stack_name=self.stack_name,
@@ -84,13 +84,16 @@ class PulumiStack(Stack, abc.ABC):
             self.__class__.logger().info(
                 f"update summary: \n{json.dumps(outcome.summary.resource_changes, indent=4)}"
             )
-            result = InfrastructureUpdated(
-                self.stack_name, self.project_name, self.location
+            result.append(
+                InfrastructureUpdated(self.stack_name, self.project_name, self.location)
             )
+            result.append(self.request_docker_image())
         except CommandError as e:
             self.__class__.logger().error(f"CommandError: {e}")
-            result = InfrastructureUpdateFailed(
-                self.stack_name, self.project_name, self.location
+            result.append(
+                InfrastructureUpdateFailed(
+                    self.stack_name, self.project_name, self.location
+                )
             )
 
         return result
@@ -102,10 +105,53 @@ class PulumiStack(Stack, abc.ABC):
         """
         pass
 
+    async def up_docker_resources(self):
+        """
+        Brings up the Docker resources.
+        :return: Either an InfrastructureUpdated event or an InfrastructureUpdateFailed.
+        :rtype: pythoneda.shared.iac.events.InfrastructureUpdated
+        """
+
+        def declare_docker_resources_wrapper():
+            return self.declare_docker_resources()
+
+        result = []
+
+        print(f"selecting stack {self.stack_name} {self.project_name}")
+        stack = auto.select_stack(
+            stack_name=self.stack_name,
+            project_name=self.project_name,
+        )
+
+        print(f"stack: {stack}")
+        stack.workspace.program = declare_docker_resources_wrapper
+
+        # stack.workspace.install_plugin("azure-native", "v2.11.0")
+        stack.set_config("azure-native:location", auto.ConfigValue(value=self.location))
+        stack.refresh(on_output=self.__class__.logger().debug)
+
+        try:
+            outcome = stack.up(on_output=self.__class__.logger().debug)
+            import json
+
+            self.__class__.logger().info(
+                f"update summary: \n{json.dumps(outcome.summary.resource_changes, indent=4)}"
+            )
+            result.append(
+                InfrastructureUpdated(self.stack_name, self.project_name, self.location)
+            )
+        except CommandError as e:
+            self.__class__.logger().error(f"CommandError: {e}")
+            result.append(
+                InfrastructureUpdateFailed(
+                    self.stack_name, self.project_name, self.location
+                )
+            )
+
+        return result
+
     @abc.abstractmethod
-    async def declare_docker_resources(
-        self, dockerImageAvailable: DockerImageAvailable
-    ):
+    def declare_docker_resources(self, dockerImageAvailable: DockerImageAvailable):
         """
         Declares the Docker resources.
         """

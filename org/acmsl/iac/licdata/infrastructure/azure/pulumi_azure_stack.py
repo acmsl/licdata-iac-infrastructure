@@ -279,6 +279,62 @@ class PulumiAzureStack(PulumiStack):
         )
         self._container_registry.create()
 
+    def request_docker_image(self):
+        """
+        Emits a request for the Docker image.
+        """
+        return DockerImageRequested("licdata")
+
+    async def declare_docker_resources(
+        self,
+        stackName: str,
+        projectName: str,
+        location: str,
+        imageName: str,
+        imageVersion: str,
+        imageUrl: str = None,
+    ):
+        """
+        Declares the Docker-dependent infrastructure resources.
+        :param stackName: The name of the stack.
+        :type stackName: str
+        :param projectName: The name of the project.
+        :type projectName: str
+        :param location: The location.
+        :type location: str
+        :param imageName: The name of the Docker image.
+        :type imageName: str
+        :param imageVersion: The version of the Docker image.
+        :type imageVersion: str
+        :param imageUrl: The url of the Docker image.
+        :type imageUrl: str
+        :return: Either a DockerResourcesUpdated or DockerResourcesUpdateFailed event.
+        :rtype: pythoneda.shared.iac.events.DockerResourcesUpdated
+        """
+        print("****** in declare_docker_resources")
+
+        stack = auto.create_or_select_stack(
+            stack_name=self.stack_name,
+            project_name=self.project_name,
+            program=declare_infrastructure_wrapper,
+        )
+
+        login_server = self.container_registry.login_server.apply(lambda name: name)
+
+        self._web_app = WebApp(
+            self.stack_name,
+            self.project_name,
+            self.location,
+            imageName,
+            imageVersion,
+            self._app_insights,
+            self._function_storage_account,
+            self._app_service_plan,
+            self._container_registry,
+            self._resource_group,
+        )
+        self._web_app.create()
+
         self._docker_pull_role_definition = DockerPullRoleDefinition(
             self.stack_name,
             self.project_name,
@@ -298,41 +354,6 @@ class PulumiAzureStack(PulumiStack):
             self._resource_group,
         )
         self._docker_pull_role_assignment.create()
-
-        self.request_docker_image()
-
-    async def declare_docker_resources(
-        self,
-        imageName: str,
-        imageVersion: str,
-        imageUrl: str = None,
-    ):
-        """
-        Declares the Docker-dependent infrastructure resources.
-        :param imageName: The name of the Docker image.
-        :type imageName: str
-        :param imageVersion: The version of the Docker image.
-        :type imageVersion: str
-        :param imageUrl: The url of the Docker image.
-        :type imageUrl: str
-        :return: Either a DockerResourcesUpdated or DockerResourcesUpdateFailed event.
-        :rtype: pythoneda.shared.iac.events.DockerResourcesUpdated
-        """
-        login_server = self.container_registry.login_server.apply(lambda name: name)
-
-        self._web_app = WebApp(
-            self.stack_name,
-            self.project_name,
-            self.location,
-            imageName,
-            imageVersion,
-            self._app_insights,
-            self._function_storage_account,
-            self._app_service_plan,
-            self._container_registry,
-            self._resource_group,
-        )
-        self._web_app.create()
 
     async def build_docker_image(
         self, resourceGroup: ResourceGroup, containerRegistry: ContainerRegistry
