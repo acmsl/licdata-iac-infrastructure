@@ -26,6 +26,8 @@ from pythoneda.shared import Event
 from pythoneda.shared.artifact.events import DockerImageAvailable, DockerImageRequested
 from pythoneda.shared.iac import Stack
 from pythoneda.shared.iac.events import (
+    InfrastructureRemoved,
+    InfrastructureRemovalFailed,
     InfrastructureUpdateFailed,
     InfrastructureUpdated,
 )
@@ -157,22 +159,41 @@ class PulumiStack(Stack, abc.ABC):
 
         return result
 
-    @abc.abstractmethod
-    def declare_docker_resources(self, event: DockerImageAvailable) -> List[Event]:
+    def destroy(self) -> List[Event]:
         """
-        Declares the Docker resources.
-        :param event: The event.
-        :type event: pythoneda.shared.artifact.events.DockerImageAvailable
+        Brings down the stack.
         :return: The list of resulting events.
         :rtype: List[pythoneda.shared.Event]
         """
-        pass
+        result = []
 
-    async def down(self):
-        """
-        Brings down the stack.
-        """
-        raise NotImplementedError()
+        stack = auto.select_stack(
+            stack_name=self.stack_name,
+            project_name=self.project_name,
+        )
+
+        stack.set_config("azure-native:location", auto.ConfigValue(value=self.location))
+        stack.refresh(on_output=self.__class__.logger().debug)
+
+        try:
+            outcome = stack.destroy(on_output=self.__class__.logger().debug)
+            import json
+
+            self.__class__.logger().info(
+                f"update summary: \n{json.dumps(outcome.summary.resource_changes, indent=4)}"
+            )
+            result.append(
+                InfrastructureRemoved(self.stack_name, self.project_name, self.location)
+            )
+        except CommandError as e:
+            self.__class__.logger().error(f"CommandError: {e}")
+            result.append(
+                InfrastructureRemovalFailed(
+                    self.stack_name, self.project_name, self.location
+                )
+            )
+
+        return result
 
 
 # vim: syntax=python ts=4 sw=4 sts=4 tw=79 sr et

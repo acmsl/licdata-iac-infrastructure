@@ -313,6 +313,7 @@ class PulumiAzureStack(PulumiStack):
             imageName,
             imageVersion,
             login_server,
+            None,
             self._app_insights,
             self._function_storage_account,
             self._app_service_plan,

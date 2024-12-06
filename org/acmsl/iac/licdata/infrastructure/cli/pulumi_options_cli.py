@@ -90,6 +90,13 @@ class PulumiOptionsCli(CliHandler, PrimaryPort):
             required=False,
             help="The location of the project",
         )
+        parser.add_argument(
+            "-o",
+            "--operation",
+            choices=["up", "destroy"],
+            required=True,
+            help="Specify the operation to perform.",
+        )
 
     async def handle(self, app: PythonEDA, args):
         """
@@ -104,6 +111,7 @@ class PulumiOptionsCli(CliHandler, PrimaryPort):
                 "stackName": args.stack,
                 "projectName": args.project,
                 "location": args.location,
+                "operation": args.operation,
             }
         )
 
