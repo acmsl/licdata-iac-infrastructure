@@ -159,7 +159,7 @@ class PulumiStack(Stack, abc.ABC):
 
         return result
 
-    def destroy(self) -> List[Event]:
+    async def destroy(self) -> List[Event]:
         """
         Brings down the stack.
         :return: The list of resulting events.
