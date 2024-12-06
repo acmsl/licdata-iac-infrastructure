@@ -167,9 +167,13 @@ class PulumiStack(Stack, abc.ABC):
         """
         result = []
 
-        stack = auto.select_stack(
+        def do_nothing():
+            pass
+
+        stack = auto.create_or_select_stack(
             stack_name=self.stack_name,
             project_name=self.project_name,
+            program=do_nothing,
         )
 
         stack.set_config("azure-native:location", auto.ConfigValue(value=self.location))
@@ -180,7 +184,7 @@ class PulumiStack(Stack, abc.ABC):
             import json
 
             self.__class__.logger().info(
-                f"update summary: \n{json.dumps(outcome.summary.resource_changes, indent=4)}"
+                f"destroy summary: \n{json.dumps(outcome.summary.resource_changes, indent=4)}"
             )
             result.append(
                 InfrastructureRemoved(self.stack_name, self.project_name, self.location)
