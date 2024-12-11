@@ -23,8 +23,13 @@ from .functions_package import FunctionsPackage
 from .functions_deployment_slot import FunctionsDeploymentSlot
 from .licdata_web_app import LicdataWebApp
 from org.acmsl.iac.licdata.infrastructure import PulumiStack
-from pythoneda.shared import EventEmitter
-from pythoneda.shared.artifact.events import DockerImageAvailable, DockerImageRequested
+from pythoneda.shared import Event, EventEmitter
+from pythoneda.shared.artifact.events import (
+    DockerImageAvailable,
+    DockerImagePushed,
+    DockerImagePushRequested,
+    DockerImageRequested,
+)
 from pythoneda.shared.iac.pulumi.azure import (
     AppInsights,
     AppServicePlan,
@@ -283,7 +288,15 @@ class PulumiAzureStack(PulumiStack):
         """
         Emits a request for the Docker image.
         """
-        return DockerImageRequested("licdata")
+        return DockerImageRequested(
+            "licdata",
+            "latest",
+            {
+                "variant": "azure",
+                "python_version": "3.11",
+                "azure_base_image_version": "4",
+            },
+        )
 
     def declare_docker_resources(
         self,
@@ -348,8 +361,23 @@ class PulumiAzureStack(PulumiStack):
         """
         Builds the Docker image.
         """
+        # Define the image name using the registry's login server
+        image_name = registry.login_server.apply(
+            lambda login_server: f"{login_server}/my-image:latest"
+        )
+
+    async def push_docker_image(self, event: DockerImagePushRequested) -> Event:
+        """
+        Pushes the Docker image to the container registry.
+        :param event: The event requesting pushing a Docker image.
+        :type event: pythoneda.shared.artifact.events.DockerImagePushRequested
+        :return: An event representing the image has been pushed successfully or not.
+        :rtype: Event
+        """
         # Retrieve the registry credentials
-        credentials = Output.all(resourceGroup.name, containerRegistry.name).apply(
+        credentials = Output.all(
+            self.resource_group.name, self.container_registry.name
+        ).apply(
             lambda args: containerRegistry.list_registry_credentials(
                 resource_group_name=args[0], registry_name=args[1]
             )
@@ -359,118 +387,13 @@ class PulumiAzureStack(PulumiStack):
         admin_username = credentials.apply(lambda c: c.username)
         admin_password = credentials.apply(lambda c: c.passwords[0].value)
 
-        # Define the image name using the registry's login server
-        image_name = registry.login_server.apply(
-            lambda login_server: f"{login_server}/my-image:latest"
+        return DockerImagePushed(
+            event.image_name,
+            event.image_version,
+            event.image_url,
+            event.registry_url,
+            event.metadata,
         )
-
-        # Create a temporary directory
-        temp_dir = tempfile.TemporaryDirectory()
-
-        # Define the path for the Dockerfile
-        dockerfile_path = os.path.join(temp_dir.name, "Dockerfile")
-
-        # Write the Dockerfile content
-        dockerfile_content = """
-FROM mcr.microsoft.com/azure-functions/python:4-python3.11
-
-ENV AzureWebJobsScriptRoot=/home/site/wwwroot \
-    AzureFunctionsJobHost__Logging__Console__IsEnabled=true \
-    GIT_PYTHON_GIT_EXECUTABLE=/usr/bin/git
-
-
-# Install system-level dependencies
-RUN apt-get update && apt-get install -y \
-    libssl-dev git libc-ares2 \
-    && apt-get clean
-
-# Set the working directory
-WORKDIR /home/site/wwwroot
-
-ADD .deps/ .
-
-COPY requirements.txt .
-
-RUN pip install --upgrade pip && pip install grpcio && pip install --no-cache-dir -r requirements.txt --user
-
-ENV FUNCTIONS_WORKER_RUNTIME python
-
-ENV PYTHONPATH="${PYTHONPATH}:/root/.local/lib/python3.11/site-packages"
-
-EXPOSE 80
-        """
-
-        # Write the Dockerfile to the temporary directory
-        with open(dockerfile_path, "w") as dockerfile:
-            dockerfile.write(dockerfile_content)
-
-        # Define the path for the requirements.txt
-        requirements_txt_path = os.path.join(temp_dir.name, "requirements.txt")
-
-        # Write the Dockerfile content
-        requirements_txt_content = """
-azure-functions==1.21.3
-bcrypt==4.1.2
-brotlicffi==1.1.0.0
-certifi==2024.2.2
-cffi==1.16.0
-charset-normalizer==3.3.2
-coverage==7.4.4
-cryptography==42.0.5
-dbus_next==0.2.3
-ddt==1.7.2
-Deprecated==1.2.14
-dnspython==2.6.1
-dulwich==0.21.7
-esdbclient==1.1.3
-gitdb==4.0.11
-GitPython==3.1.43
-grpcio==1.62.2
-idna==3.7
-installer==0.7.0
-packaging==24.0
-paramiko==3.4.0
-path==16.14.0
-poetry-core==1.9.0
-protobuf==4.24.4
-pyasn1==0.6.0
-pycparser==2.22
-PyGithub==2.3.0
-PyJWT==2.8.0
-PyNaCl==1.5.0
-requests==2.31.0
-semver==3.0.2
-six==1.16.0
-typing_extensions==4.11.0
-unidiff==0.7.5
-urllib3==2.2.1
-wheel==0.43.0
-wrapt==1.16.0
-        """
-
-        image_name = containerRegistry.login_server.apply(
-            lambda login_server: f"{login_server}/licdata:latest"
-        )
-
-        # Build and push the Docker image
-        image = Image(
-            "licdata:latest",
-            build=temporary_folder,
-            image_name=image_name,
-            registry=Registry(
-                server=containerRegistry.login_server,
-                username=admin_username,
-                password=admin_password,
-            ),
-        )
-
-    async def push_docker_image(self, container_registry: ContainerRegistry):
-        """
-        Pushes the Docker image to the container registry.
-        :param container_registry: The container registry.
-        :type container_registry: ContainerRegistry
-        """
-        pass
 
 
 # vim: syntax=python ts=4 sw=4 sts=4 tw=79 sr et
