@@ -20,11 +20,13 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 from dbus_next import BusType
-from pythoneda.shared.artifact.events import DockerImageAvailable
+from pythoneda.shared.artifact.events import DockerImageAvailable, DockerImagePushed
 from pythoneda.shared.artifact.events.infrastructure.dbus import (
     DbusDockerImageAvailable,
+    DbusDockerImagePushed,
 )
 from pythoneda.shared.infrastructure.dbus import DbusSignalListener
+
 from typing import Dict
 
 
@@ -60,6 +62,8 @@ class LicdataIacDbusSignalListener(DbusSignalListener):
         result = {}
         key = self.__class__.full_class_name(DockerImageAvailable)
         result[key] = [DbusDockerImageAvailable, BusType.SYSTEM]
+        key = self.__class__.full_class_name(DockerImagePushed)
+        result[key] = [DbusDockerImagePushed, BusType.SYSTEM]
 
         return result
 

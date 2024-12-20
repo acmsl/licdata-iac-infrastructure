@@ -82,16 +82,18 @@ class PulumiStack(Stack, abc.ABC):
         stack.refresh(on_output=self.__class__.logger().debug)
 
         try:
-            outcome = stack.up(on_output=self.__class__.logger().debug)
+            self._outcome = stack.up(on_output=self.__class__.logger().debug)
             import json
 
             self.__class__.logger().info(
-                f"update summary: \n{json.dumps(outcome.summary.resource_changes, indent=4)}"
+                f"update summary: \n{json.dumps(self.outcome.summary.resource_changes, indent=4)}"
+            )
+            event = InfrastructureUpdated(
+                self.stack_name, self.project_name, self.location
             )
             result.append(
                 InfrastructureUpdated(self.stack_name, self.project_name, self.location)
             )
-            result.append(self.request_docker_image())
         except CommandError as e:
             self.__class__.logger().error(f"CommandError: {e}")
             result.append(

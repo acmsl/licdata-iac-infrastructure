@@ -23,6 +23,7 @@ from .functions_package import FunctionsPackage
 from .functions_deployment_slot import FunctionsDeploymentSlot
 from .licdata_web_app import LicdataWebApp
 from org.acmsl.iac.licdata.infrastructure import PulumiStack
+from pulumi import Output
 from pythoneda.shared import Event, EventEmitter
 from pythoneda.shared.artifact.events import (
     DockerImageAvailable,
@@ -44,6 +45,7 @@ from pythoneda.shared.iac.pulumi.azure import (
     ResourceGroup,
     WebApp,
 )
+from typing import Dict
 
 
 class PulumiAzureStack(PulumiStack):
@@ -284,6 +286,29 @@ class PulumiAzureStack(PulumiStack):
         )
         self._container_registry.create()
 
+    async def retrieve_container_registry_credentials(self) -> Dict[str, str]:
+        """
+        Retrieves the container registry credentials.
+        :return: A dictionary with the credentials.
+        :rtype: Dict[str, str]
+        """
+        print(self.outcome.outputs)
+        username = self.outcome.outputs.get("container_registry_username", None)
+        if username is not None:
+            username = username.value
+        password = self.outcome.outputs.get("container_registry_password", None)
+        if password is not None:
+            password = password.value
+        url = self.outcome.outputs.get("container_registry_url", None)
+        if url is not None:
+            url = url.value
+
+        return {
+            "username": username,
+            "password": password,
+            "docker_registry_url": url,
+        }
+
     def request_docker_image(self):
         """
         Emits a request for the Docker image.
@@ -354,17 +379,6 @@ class PulumiAzureStack(PulumiStack):
             self._resource_group,
         )
         self._docker_pull_role_assignment.create()
-
-    async def build_docker_image(
-        self, resourceGroup: ResourceGroup, containerRegistry: ContainerRegistry
-    ):
-        """
-        Builds the Docker image.
-        """
-        # Define the image name using the registry's login server
-        image_name = registry.login_server.apply(
-            lambda login_server: f"{login_server}/my-image:latest"
-        )
 
     async def push_docker_image(self, event: DockerImagePushRequested) -> Event:
         """

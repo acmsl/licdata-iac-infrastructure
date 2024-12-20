@@ -24,7 +24,13 @@ from pythoneda.shared.artifact.events import DockerImageRequested
 from pythoneda.shared.artifact.events.infrastructure.dbus import (
     DbusDockerImageRequested,
 )
+from pythoneda.shared.iac.events import InfrastructureUpdated
+from pythoneda.shared.iac.events.infrastructure.dbus import DbusInfrastructureUpdated
 from pythoneda.shared.infrastructure.dbus import DbusSignalEmitter
+from pythoneda.shared.runtime.secrets.events import CredentialIssued
+from pythoneda.shared.runtime.secrets.events.infrastructure.dbus import (
+    DbusCredentialIssued,
+)
 from typing import Dict
 
 
@@ -56,8 +62,12 @@ class LicdataIacDbusSignalEmitter(DbusSignalEmitter):
         :rtype: Dict
         """
         result = {}
+        key = self.__class__.full_class_name(InfrastructureUpdated)
+        result[key] = [DbusInfrastructureUpdated, BusType.SYSTEM]
         key = self.__class__.full_class_name(DockerImageRequested)
         result[key] = [DbusDockerImageRequested, BusType.SYSTEM]
+        key = self.__class__.full_class_name(CredentialIssued)
+        result[key] = [DbusCredentialIssued, BusType.SYSTEM]
 
         return result
 
