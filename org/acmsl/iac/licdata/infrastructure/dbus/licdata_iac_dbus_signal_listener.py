@@ -19,15 +19,8 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
-from dbus_next import BusType
-from pythoneda.shared.artifact.events import DockerImageAvailable, DockerImagePushed
-from pythoneda.shared.artifact.events.infrastructure.dbus import (
-    DbusDockerImageAvailable,
-    DbusDockerImagePushed,
-)
 from pythoneda.shared.infrastructure.dbus import DbusSignalListener
-
-from typing import Dict
+from typing import List
 
 
 class LicdataIacDbusSignalListener(DbusSignalListener):
@@ -42,30 +35,23 @@ class LicdataIacDbusSignalListener(DbusSignalListener):
 
     Collaborators:
         - pythoneda.shared.application.PythonEDA: Requests emitting events.
-        - pythoneda.shared.artifact.events.infrastructure.dbus.DbusDockerImageAvailable
+        - pythoneda.shared.artifact.events.infrastructure.dbus.DbusDockerImagePushed
     """
 
     def __init__(self):
         """
         Creates a new LicdataIacDbusSignalListener instance.
         """
-        super().__init__("pythoneda.shared.artifact.events.infrastructure.dbus")
+        super().__init__()
 
-    def signal_receivers(self, app) -> Dict:
+    @classmethod
+    def event_packages(cls) -> List[str]:
         """
-        Retrieves the configured event receivers.
-        :param app: The PythonEDA instance.
-        :type app: pythoneda.shared.application.PythonEDA
-        :return: For each event, a list with the event interface and the bus type.
-        :rtype: Dict
+        Retrieves the packages of the supported events.
+        :return: The packages.
+        :rtype: List[str]
         """
-        result = {}
-        key = self.__class__.full_class_name(DockerImageAvailable)
-        result[key] = [DbusDockerImageAvailable, BusType.SYSTEM]
-        key = self.__class__.full_class_name(DockerImagePushed)
-        result[key] = [DbusDockerImagePushed, BusType.SYSTEM]
-
-        return result
+        return ["pythoneda.shared.artifact.events.infrastructure.dbus"]
 
 
 # vim: syntax=python ts=4 sw=4 sts=4 tw=79 sr et

@@ -309,9 +309,15 @@ class PulumiAzureStack(PulumiStack):
             "docker_registry_url": url,
         }
 
-    def request_docker_image(self):
+    def request_docker_image(self, secretName: str, registryUrl: str):
         """
         Emits a request for the Docker image.
+        :param secretName: The name of the secret.
+        :type secretName: str
+        :param registryUrl: The url of the registry.
+        :type registryUrl: str
+        :return: A DockerImageRequested event.
+        :rtype: pythoneda.shared.artifact.events.DockerImageRequested
         """
         return DockerImageRequested(
             "licdata",
@@ -320,6 +326,8 @@ class PulumiAzureStack(PulumiStack):
                 "variant": "azure",
                 "python_version": "3.11",
                 "azure_base_image_version": "4",
+                "credential_name": secretName,
+                "docker_registry_url": registryUrl,
             },
         )
 
