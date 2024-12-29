@@ -1,8 +1,8 @@
 # vim: set fileencoding=utf-8
 """
-org/acmsl/iac/licdata/infrastructure/remove_pulumi_stack.py
+org/acmsl/iac/licdata/infrastructure/remove_infrastructure_with_pulumi.py
 
-This script defines the RemovePulumiStack class.
+This script defines the RemoveInfrastructureWithPulumi class.
 
 Copyright (C) 2024-today acmsl's Licdata IaC
 
@@ -24,39 +24,37 @@ from pulumi import automation as auto
 from pulumi.automation.errors import CommandError
 from pythoneda.shared import Event
 from pythoneda.shared.artifact.events import DockerImageAvailable, DockerImageRequested
-from pythoneda.shared.iac import RemoveStack
+from pythoneda.shared.iac import RemoveInfrastructure
 from pythoneda.shared.iac.events import (
-    DockerResourcesRemovalRequested,
-    DockerResourcesRemovalFailed,
-    DockerResourcesRemoved,
-    InfrastructureRemoved,
+    InfrastructureRemovalRequested,
     InfrastructureRemovalFailed,
+    InfrastructureRemoved,
 )
 from typing import List
 
 
-class RemovePulumiStack(RemoveStack, abc.ABC):
+class RemoveInfrastructureWithPulumi(RemoveInfrastructure, abc.ABC):
     """
-    Pulumi implementation to remove Licdata infrastructure stacks.
+    Pulumi implementation to remove infrastructure of IaC stacks.
 
-    Class name: RemovePulumiStack
+    Class name: RemoveInfrastructureWithPulumi
 
     Responsibilities:
-        - Remove Pulumi-based Licdata infrastructure stacks.
+        - Remove Pulumi-based infrastructure of IaC stacks.
 
     Collaborators:
-        - pythoneda.shared.iac.RemoveStack
+        - pythoneda.shared.iac.RemoveInfrastructure
     """
 
     def __init__(self, event: InfrastructureRemovalRequested):
         """
-        Creates a new RemovePulumiStack instance.
+        Creates a new RemoveInfrastructureWithPulumi instance.
         :param event: The event.
         :type event: pythoneda.shared.iac.events.InfrastructureRemovalRequested
         """
         super().__init__(event)
 
-    async def remove(self) -> List[Event]:
+    async def perform(self) -> List[Event]:
         """
         Brings down the stack.
         :return: Either an InfrastructureRemoved or an InfrastructureRemovalFailed.

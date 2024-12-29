@@ -1,8 +1,8 @@
 # vim: set fileencoding=utf-8
 """
-org/acmsl/iac/licdata/infrastructure/azure/pulumi_azure_stack.py
+org/acmsl/iac/licdata/infrastructure/azure/update_azure_infrastructure_with_pulumi.py
 
-This script defines the PulumiAzureStack class.
+This script defines the UpdateAzureInfrastructureWithPulumi class.
 
 Copyright (C) 2024-today acmsl/licdata-iac-infrastructure
 
@@ -22,7 +22,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 from .functions_package import FunctionsPackage
 from .functions_deployment_slot import FunctionsDeploymentSlot
 from .licdata_web_app import LicdataWebApp
-from org.acmsl.iac.licdata.infrastructure import PulumiStack
+from org.acmsl.iac.licdata.infrastructure import UpdateInfrastructureWithPulumi
 from pulumi import Output
 from pythoneda.shared import Event, EventEmitter
 from pythoneda.shared.artifact.events import (
@@ -31,6 +31,7 @@ from pythoneda.shared.artifact.events import (
     DockerImagePushRequested,
     DockerImageRequested,
 )
+from pythoneda.shared.iac.events import InfrastructureUpdateRequested
 from pythoneda.shared.iac.pulumi.azure import (
     AppInsights,
     AppServicePlan,
@@ -48,30 +49,26 @@ from pythoneda.shared.iac.pulumi.azure import (
 from typing import Dict
 
 
-class PulumiAzureStack(PulumiStack):
+class UpdateAzureInfrastructureWithPulumi(UpdateInfrastructureWithPulumi):
     """
     Azure-specific Pulumi implementation of Licdata infrastructure stacks.
 
-    Class name: PulumiAzureStack
+    Class name: UpdateAzureInfrastructureWithPulumi
 
     Responsibilities:
         - Use Azure-specific Pulumi stack as Licdata infrastructure stack.
 
     Collaborators:
-        - org.acmsl.licdata.infrastructure.PulumiStack
+        - org.acmsl.licdata.infrastructure.UpdateInfrastructureWithPulumi
     """
 
-    def __init__(self, name: str, projectName: str, location: str):
+    def __init__(self, event: InfrastructureUpdateRequested):
         """
-        Creates a new PulumiAzureStack instance.
-        :param name: The name of the stack.
-        :type name: str
-        :param projectName: The name of the project.
-        :type projectName: str
-        :param location: The Azure location.
-        :type location: str
+        Creates a new UpdateAzureInfrastructureWithPulumi instance.
+        :param event: The request.
+        :type event: pythoneda.shared.iac.events.InfrastructureUpdateRequested
         """
-        super().__init__(name, projectName, location)
+        super().__init__(event)
         self._resource_group = None
         self._function_storage_account = None
         self._app_service_plan = None
@@ -84,18 +81,17 @@ class PulumiAzureStack(PulumiStack):
         self._container_registry = None
         self._webapp_deployment_slot = None
         self._app_insights = None
-        self._docker_pull_role_definition = None
-        self._docker_pull_role_assignment = None
-        self._web_app = None
 
     @classmethod
     def instantiate(cls):
         """
         Creates an instance.
         :return: The new instance.
-        :rtype: pythoneda.iac.pulumi.azure.PulumiAzureStackFactory
+        :rtype: pythoneda.iac.pulumi.azure.UpdateAzureInfrastructureWithPulumiFactory
         """
-        raise InvalidOperationError("Cannot instantiate PulumiAzureStack directly")
+        raise InvalidOperationError(
+            "Cannot instantiate UpdateAzureInfrastructureWithPulumi directly"
+        )
 
     @property
     def resource_group(self) -> ResourceGroup:
@@ -123,15 +119,6 @@ class PulumiAzureStack(PulumiStack):
         :rtype: pythoneda.iac.pulumi.azure.AppServicePlan
         """
         return self._app_service_plan
-
-    @property
-    def web_app(self) -> WebApp:
-        """
-        Retrieves the Azure WebApp.
-        :return: Such WebApp.
-        :rtype: pythoneda.iac.pulumi.azure.WebApp
-        """
-        return self._web_app
 
     @property
     def public_ip_address(self) -> PublicIpAddress:
@@ -205,42 +192,27 @@ class PulumiAzureStack(PulumiStack):
         """
         return self._container_registry
 
-    @property
-    def docker_pull_role_definition(self) -> DockerPullRoleDefinition:
-        """
-        Retrieves the Role Definition allowing the functions to perform Docker pulls.
-        :return: Such instance.
-        :rtype: pythoneda.iac.pulumi.azure.DorkecPullRoleDefinition
-        """
-        return self._docker_pull_role_definition
-
-    @property
-    def docker_pull_role_assignment(self) -> DockerPullRoleAssignment:
-        """
-        Retrieves the Role Assignment allowing the functions to perform Docker pulls.
-        :return: Such instance.
-        :rtype: pythoneda.iac.pulumi.azure.DockerPullRoleAssignment
-        """
-        return self._docker_pull_role_assignment
-
     def declare_infrastructure(self):
         """
         Creates the infrastructure.
         """
         self._resource_group = ResourceGroup(
-            self.stack_name, self.project_name, self.location
+            self.event.stack_name, self.event.project_name, self.event.location
         )
         self._resource_group.create()
 
         self._function_storage_account = FunctionStorageAccount(
-            self.stack_name, self.project_name, self.location, self._resource_group
+            self.event.stack_name,
+            self.event.project_name,
+            self.event.location,
+            self._resource_group,
         )
         self._function_storage_account.create()
 
         self._app_service_plan = AppServicePlan(
-            self.stack_name,
-            self.project_name,
-            self.location,
+            self.event.stack_name,
+            self.event.project_name,
+            self.event.location,
             None,
             None,
             None,
@@ -267,9 +239,9 @@ class PulumiAzureStack(PulumiStack):
         #     self._blob_container, self._function_storage_account, self.stack_name, self.project_name, self.location, self._resource_group
         # )
         self._app_insights = AppInsights(
-            self.stack_name,
-            self.project_name,
-            self.location,
+            self.event.stack_name,
+            self.event.project_name,
+            self.event.location,
             None,
             None,
             self._resource_group,
@@ -277,9 +249,9 @@ class PulumiAzureStack(PulumiStack):
         self._app_insights.create()
 
         self._container_registry = ContainerRegistry(
-            self.stack_name,
-            self.project_name,
-            self.location,
+            self.event.stack_name,
+            self.event.project_name,
+            self.event.location,
             None,
             None,
             self._resource_group,
@@ -292,7 +264,7 @@ class PulumiAzureStack(PulumiStack):
         :return: A dictionary with the credentials.
         :rtype: Dict[str, str]
         """
-        print(self.outcome.outputs)
+        UpdateAzureInfrastructureWithPulumi.logger().debug(self.outcome.outputs)
         username = self.outcome.outputs.get("container_registry_username", None)
         if username is not None:
             username = username.value
@@ -304,118 +276,10 @@ class PulumiAzureStack(PulumiStack):
             url = url.value
 
         return {
-            "username": username,
-            "password": password,
+            "credential_name": username,
+            "credential_password": password,
             "docker_registry_url": url,
         }
-
-    def request_docker_image(self, secretName: str, registryUrl: str):
-        """
-        Emits a request for the Docker image.
-        :param secretName: The name of the secret.
-        :type secretName: str
-        :param registryUrl: The url of the registry.
-        :type registryUrl: str
-        :return: A DockerImageRequested event.
-        :rtype: pythoneda.shared.artifact.events.DockerImageRequested
-        """
-        return DockerImageRequested(
-            "licdata",
-            "latest",
-            {
-                "variant": "azure",
-                "python_version": "3.11",
-                "azure_base_image_version": "4",
-                "credential_name": secretName,
-                "docker_registry_url": registryUrl,
-            },
-        )
-
-    def declare_docker_resources(
-        self,
-        imageName: str,
-        imageVersion: str,
-        imageUrl: str = None,
-    ):
-        """
-        Declares the Docker-dependent infrastructure resources.
-        :param imageName: The name of the Docker image.
-        :type imageName: str
-        :param imageVersion: The version of the Docker image.
-        :type imageVersion: str
-        :param imageUrl: The url of the Docker image.
-        :type imageUrl: str
-        :return: Either a DockerResourcesUpdated or DockerResourcesUpdateFailed event.
-        :rtype: pythoneda.shared.iac.events.DockerResourcesUpdated
-        """
-        result = self.declare_infrastructure()
-
-        login_server = self.container_registry.login_server.apply(lambda name: name)
-
-        self._web_app = WebApp(
-            self.stack_name,
-            self.project_name,
-            self.location,
-            imageName,
-            imageVersion,
-            login_server,
-            None,
-            self._app_insights,
-            self._function_storage_account,
-            self._app_service_plan,
-            self._container_registry,
-            self._resource_group,
-        )
-        self._web_app.create()
-
-        self._docker_pull_role_definition = DockerPullRoleDefinition(
-            self.stack_name,
-            self.project_name,
-            self.location,
-            self._container_registry,
-            self._resource_group,
-        )
-        self._docker_pull_role_definition.create()
-
-        self._docker_pull_role_assignment = DockerPullRoleAssignment(
-            self.stack_name,
-            self.project_name,
-            self.location,
-            self._web_app,
-            self._docker_pull_role_definition,
-            self._container_registry,
-            self._resource_group,
-        )
-        self._docker_pull_role_assignment.create()
-
-    async def push_docker_image(self, event: DockerImagePushRequested) -> Event:
-        """
-        Pushes the Docker image to the container registry.
-        :param event: The event requesting pushing a Docker image.
-        :type event: pythoneda.shared.artifact.events.DockerImagePushRequested
-        :return: An event representing the image has been pushed successfully or not.
-        :rtype: Event
-        """
-        # Retrieve the registry credentials
-        credentials = Output.all(
-            self.resource_group.name, self.container_registry.name
-        ).apply(
-            lambda args: containerRegistry.list_registry_credentials(
-                resource_group_name=args[0], registry_name=args[1]
-            )
-        )
-
-        # Extract the username and password
-        admin_username = credentials.apply(lambda c: c.username)
-        admin_password = credentials.apply(lambda c: c.passwords[0].value)
-
-        return DockerImagePushed(
-            event.image_name,
-            event.image_version,
-            event.image_url,
-            event.registry_url,
-            event.metadata,
-        )
 
 
 # vim: syntax=python ts=4 sw=4 sts=4 tw=79 sr et

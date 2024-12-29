@@ -20,8 +20,7 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 from argparse import ArgumentParser
-from pythoneda.shared import PrimaryPort
-from pythoneda.shared.application import PythonEDA
+from pythoneda.shared import PrimaryPort, PythonedaApplication
 from pythoneda.shared.infrastructure.cli import CliHandler
 
 
@@ -98,11 +97,11 @@ class PulumiOptionsCli(CliHandler, PrimaryPort):
             help="Specify the operation to perform.",
         )
 
-    async def handle(self, app: PythonEDA, args):
+    async def handle(self, app: PythonedaApplication, args):
         """
         Processes the command specified from the command line.
         :param app: The PythonEDA instance.
-        :type app: pythoneda.shared.application.PythonEDA
+        :type app: pythoneda.shared.PythonedaApplication
         :param args: The CLI args.
         :type args: argparse.args
         """

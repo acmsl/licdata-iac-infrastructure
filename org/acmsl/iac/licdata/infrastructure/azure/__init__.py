@@ -25,7 +25,10 @@ from .functions_deployment_slot import FunctionsDeploymentSlot
 from .functions_package import FunctionsPackage
 from .licdata_api import LicdataApi
 from .licdata_web_app import LicdataWebApp
-from .pulumi_azure_stack import PulumiAzureStack
-from .pulumi_azure_stack_factory import PulumiAzureStackFactory
+from .update_azure_docker_resources_with_pulumi import (
+    UpdateAzureDockerResourcesWithPulumi,
+)
+from .update_azure_infrastructure_with_pulumi import UpdateAzureInfrastructureWithPulumi
+from .pulumi_azure_stack_operation_factory import PulumiAzureStackOperationFactory
 
 # vim: syntax=python ts=4 sw=4 sts=4 tw=79 sr et

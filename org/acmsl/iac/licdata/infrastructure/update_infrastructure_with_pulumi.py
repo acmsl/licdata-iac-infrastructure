@@ -1,8 +1,8 @@
 # vim: set fileencoding=utf-8
 """
-org/acmsl/iac/licdata/infrastructure/update_pulumi_stack.py
+org/acmsl/iac/licdata/infrastructure/update_infrastructure_with_pulumi.py
 
-This script defines the UpdatePulumiStack class.
+This script defines the UpdateInfrastructureWithPulumi class.
 
 Copyright (C) 2024-today acmsl's Licdata IaC
 
@@ -23,43 +23,39 @@ import abc
 from pulumi import automation as auto
 from pulumi.automation.errors import CommandError
 from pythoneda.shared import Event
-from pythoneda.shared.artifact.events import DockerImageAvailable, DockerImageRequested
-from pythoneda.shared.iac import Stack
+from pythoneda.shared.iac import UpdateInfrastructure
 from pythoneda.shared.iac.events import (
-    DockerResourcesUpdateRequested,
-    DockerResourcesUpdateFailed,
+    InfrastructureUpdateRequested,
     InfrastructureUpdateFailed,
     InfrastructureUpdated,
 )
-from typing import List
+from typing import Dict, List
 
 
-class UpdatePulumiStack(Stack, abc.ABC):
+class UpdateInfrastructureWithPulumi(UpdateInfrastructure, abc.ABC):
     """
-    Updates Pulumi-based Licdata infrastructure stacks.
+    Updates Pulumi to update infrastructure of IaC stacks.
 
-    Class name: UpdatePulumiStack
+    Class name: UpdateInfrastructureWithPulumi
 
     Responsibilities:
-        - Updates Pulumi-based Licdata infrastructure stacks.
+        - Updates infrastructure of IaC stacks using Pulumi.
 
     Collaborators:
-        - pythoneda.shared.iac.UpdateStack
+        - pythoneda.shared.iac.UpdateInfrastructure
     """
 
     def __init__(self, event: InfrastructureUpdateRequested):
         """
-        Creates a new UpdatePulumiStack instance.
+        Creates a new UpdateInfrastructureWithPulumi instance.
         :param event: The event.
         :type event: pythoneda.shared.iac.events.InfrastructureUpdateRequested
         """
         super().__init__(event)
 
-    async def up(self, event: InfrastructureUpdateRequested):
+    async def perform(self):
         """
         Brings up the stack.
-        :param event: The event.
-        :type event: pythoneda.shared.iac.events.InfrastructureUpdateRequested
         :return: Either an InfrastructureUpdated event or an InfrastructureUpdateFailed.
         :rtype: pythoneda.shared.iac.events.InfrastructureUpdated
         """
@@ -92,16 +88,11 @@ class UpdatePulumiStack(Stack, abc.ABC):
                 self.event.stack_name,
                 self.event.project_name,
                 self.event.location,
+                await self.retrieve_container_registry_credentials(),
                 [self.event.id] + self.event.previous_event_ids,
             )
-            result.append(
-                InfrastructureUpdated(
-                    self.event.stack_name,
-                    self.event.project_name,
-                    self.event.location,
-                    [self.event.id] + self.event.previous_event_ids,
-                )
-            )
+            result.append(event)
+
         except CommandError as e:
             self.__class__.logger().error(f"CommandError: {e}")
             result.append(
@@ -116,66 +107,22 @@ class UpdatePulumiStack(Stack, abc.ABC):
         return result
 
     @abc.abstractmethod
-    def declare_infrastructure(self):
+    def declare_infrastructure(self, event: InfrastructureUpdateRequested):
         """
         Declares the infrastructure.
+        :param event: The event.
+        :type event: pythoneda.shared.iac.events.InfrastructureUpdateRequested
         """
         pass
 
-    async def up_docker_resources(self, event: DockerResourcesUpdateRequested) -> Event:
+    @abc.abstractmethod
+    async def retrieve_container_registry_credentials(self) -> Dict[str, str]:
         """
-        Brings up the Docker resources.
-        :param event: The event.
-        :type event: pythoneda.shared.iac.events.DockerResourcesUpdateRequested
-        :return: Either a DockerResourcesUpdated or a DockerResourcesUpdateFailed
-        :rtype: Event
+        Retrieves the container registry credentials.
+        :return: A dictionary with the credentials.
+        :rtype: Dict[str, str]
         """
-
-        def declare_docker_resources_wrapper():
-            return self.declare_docker_resources(
-                event.image_name,
-                event.image_version,
-                event.image_url,
-                [event.id] + event.previous_event_ids,
-            )
-
-        result = None
-
-        stack = auto.create_or_select_stack(
-            stack_name=event.stack_name,
-            project_name=event.project_name,
-            program=declare_docker_resources_wrapper,
-        )
-
-        # stack.workspace.install_plugin("azure-native", "v2.11.0")
-        stack.set_config(
-            "azure-native:location", auto.ConfigValue(value=event.location)
-        )
-        stack.refresh(on_output=self.__class__.logger().debug)
-
-        try:
-            self._outcome = stack.up(on_output=self.__class__.logger().debug)
-            import json
-
-            self.__class__.logger().info(
-                f"update summary: \n{json.dumps(self.outcome.summary.resource_changes, indent=4)}"
-            )
-            result = DockerResourcesUpdated(
-                event.stack_name,
-                event.project_name,
-                event.location,
-                [event.id] + event.previous_event_ids,
-            )
-        except CommandError as e:
-            self.__class__.logger().error(f"CommandError: {e}")
-            result = DockerResourcesUpdateFailed(
-                event.stack_name,
-                event.project_name,
-                event.location,
-                [event.id] + event.previous_event_ids,
-            )
-
-        return result
+        pass
 
 
 # vim: syntax=python ts=4 sw=4 sts=4 tw=79 sr et

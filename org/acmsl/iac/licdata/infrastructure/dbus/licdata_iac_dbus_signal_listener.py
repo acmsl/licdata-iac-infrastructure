@@ -20,7 +20,7 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 from pythoneda.shared.infrastructure.dbus import DbusSignalListener
-from typing import List
+from typing import Dict, List
 
 
 class LicdataIacDbusSignalListener(DbusSignalListener):
