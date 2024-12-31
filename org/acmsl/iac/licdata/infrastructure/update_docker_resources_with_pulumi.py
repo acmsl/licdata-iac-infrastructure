@@ -54,17 +54,18 @@ class UpdateDockerResourcesWithPulumi(UpdateDockerResources, abc.ABC):
         super().__init__(event)
 
     @abc.abstractmethod
-    def declare_docker_resources(self, event: DockerResourcesUpdateRequested) -> Event:
+    def declare_docker_resources(self) -> Event:
         """
         Declares the Docker resources.
-        :param event: The event.
-        :type event: pythoneda.shared.iac.events.DockerResourcesUpdateRequested
         :return: Either a DockerResourcesUpdated or a DockerResourcesUpdateFailed
         :rtype: Event
         """
+        UpdateDockerResourcesWithPulumi.logger().info(
+            "doing nothing in declare_docker_resources()"
+        )
         pass
 
-    async def perform(self, event: DockerResourcesUpdateRequested) -> Event:
+    async def perform(self) -> Event:
         """
         Brings up the Docker resources.
         :param event: The event.
@@ -74,24 +75,33 @@ class UpdateDockerResourcesWithPulumi(UpdateDockerResources, abc.ABC):
         """
 
         def declare_docker_resources_wrapper():
-            return self.declare_docker_resources(event)
+            return self.declare_docker_resources()
 
         result = None
 
+        UpdateDockerResourcesWithPulumi.logger().info(
+            f"create_or_select_stack({self.event})"
+        )
         stack = auto.create_or_select_stack(
-            stack_name=event.stack_name,
-            project_name=event.project_name,
+            #            stack_name=f"{self.event.stack_name}-docker",
+            stack_name=self.event.stack_name,
+            project_name=self.event.project_name,
             program=declare_docker_resources_wrapper,
+        )
+        UpdateDockerResourcesWithPulumi.logger().info(
+            f"create_or_select_stack({self.event}) finished"
         )
 
         # stack.workspace.install_plugin("azure-native", "v2.11.0")
         stack.set_config(
-            "azure-native:location", auto.ConfigValue(value=event.location)
+            "azure-native:location", auto.ConfigValue(value=self.event.location)
         )
         stack.refresh(on_output=self.__class__.logger().debug)
+        UpdateDockerResourcesWithPulumi.logger().info("stack.refresh() finished")
 
         try:
             self._outcome = stack.up(on_output=self.__class__.logger().debug)
+            UpdateDockerResourcesWithPulumi.logger().info("stack.up() finished")
             import json
 
             self.__class__.logger().info(

@@ -75,6 +75,7 @@ class RequestAzureDockerImageDetails(RequestDockerImageDetails):
                         "docker_registry_url", None
                     ),
                 },
+                [self.event.id] + self.event.previous_event_ids,
             )
         ]
 
