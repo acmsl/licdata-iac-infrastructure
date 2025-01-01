@@ -96,6 +96,12 @@ class PulumiOptionsCli(CliHandler, PrimaryPort):
             required=True,
             help="Specify the operation to perform.",
         )
+        parser.add_argument(
+            "-as",
+            "--azure-subscription-id",
+            required=False,
+            help="For Azure, the subscription id.",
+        )
 
     async def handle(self, app: PythonedaApplication, args):
         """
@@ -107,10 +113,11 @@ class PulumiOptionsCli(CliHandler, PrimaryPort):
         """
         await app.accept_pulumi_options(
             {
-                "stackName": args.stack,
-                "projectName": args.project,
+                "stack_name": args.stack,
+                "project_name": args.project,
                 "location": args.location,
                 "operation": args.operation,
+                "azure_subscription_id": args.azure_subscription_id,
             }
         )
 

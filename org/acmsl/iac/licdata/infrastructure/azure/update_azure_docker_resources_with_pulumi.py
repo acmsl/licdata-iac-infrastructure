@@ -19,6 +19,8 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
+from azure.identity import DefaultAzureCredential
+from azure.mgmt.resource import ResourceManagementClient
 from .licdata_web_app import LicdataWebApp
 from .update_azure_infrastructure_with_pulumi import UpdateAzureInfrastructureWithPulumi
 from org.acmsl.iac.licdata.infrastructure import UpdateDockerResourcesWithPulumi
@@ -128,6 +130,43 @@ class UpdateAzureDockerResourcesWithPulumi(UpdateDockerResourcesWithPulumi):
             [self.event.id] + self.event.previous_event_ids,
         )
 
+    def find_azure_resource_by_name_prefix(
+        self, resourceGroupName: str, namePrefix: str, resourceType: str
+    ) -> pulumi.Resource:
+        """
+        Finds an Azure resource by its name prefix.
+        :param resourceGroupName: The name of the resource group.
+        :type resourceGroupName: str
+        :param namePrefix: The name prefix.
+        :type namePrefix: str
+        :param resourceType: The resource type.
+        :type resourceType: str
+        :return: The Azure resource.
+        :rtype: pulumi.Resource
+        """
+        from azure.identity import DefaultAzureCredential
+        from azure.mgmt.resource import ResourceManagementClient
+
+        result = None
+
+        credential = DefaultAzureCredential()
+        subscription_id = self.event.metadata.get("azure_subscription_id", None)
+        resource_client = ResourceManagementClient(credential, subscription_id)
+
+        resources = resource_client.resources.list_by_resource_group(resourceGroupName)
+
+        filtered_resources = [
+            res
+            for res in resources
+            if res.type.lower() == resource_type.lower()
+            and res.name.startswith(namePrefix)
+        ]
+
+        if len(filtered_resources) > 0:
+            result = filtered_resources[0]
+
+        return result
+
     def declare_docker_resources(self) -> List[Event]:
         """
         Declares the Docker-dependent infrastructure resources.
@@ -136,6 +175,10 @@ class UpdateAzureDockerResourcesWithPulumi(UpdateDockerResourcesWithPulumi):
         """
         UpdateAzureInfrastructureWithPulumi.logger().debug(
             "Creating remaining Azure resources (WebApp, DockerPullRoleDefinition, DockerPullRoleAssignment)"
+        )
+
+        UpdateAzureInfrastructureWithPulumi.logger().info(
+            f"metadata available: {self.event.metadata}"
         )
 
         resource_group = self.get_resource_group()
@@ -196,11 +239,35 @@ class UpdateAzureDockerResourcesWithPulumi(UpdateDockerResourcesWithPulumi):
         :return: Such instance.
         :rtype: pythoneda.iac.pulumi.azure.ResourceGroup
         """
-        return resources.get_resource_group(
-            resource_group_name=ResourceGroup.name_for(
-                self.event.stack_name, self.event.project_name, self.event.location
-            )
+        # Initialize Azure client
+        credential = DefaultAzureCredential()
+        resource_client = ResourceManagementClient(
+            credential, self.event.metadata.get("azure_subscription_id", None)
         )
+
+        # List all resource groups
+        resource_groups = resource_client.resource_groups.list()
+
+        # Filter resource groups by prefix, stack name, stage, and location
+        matching_groups = [
+            rg
+            for rg in resource_groups
+            if rg.name.startswith(
+                ResourceGroup.name_for(
+                    self.event.stack_name, self.event.project_name, self.event.location
+                )
+            )
+            and self.event.stack_name in rg.name
+            and self.event.location.lower() == rg.location.lower()
+        ]
+
+        if not matching_groups:
+            raise Exception(
+                f"No matching resource group found for prefix '{prefix}' in location '{location}'."
+            )
+
+        # Return the first matching resource group
+        return matching_groups[0]
 
     def get_app_insights(
         self, resourceGroupName: str
@@ -212,8 +279,12 @@ class UpdateAzureDockerResourcesWithPulumi(UpdateDockerResourcesWithPulumi):
         :return: Such instance.
         :rtype: pulumi_azure_native.insights.AwaitableGetcomponentResult
         """
-        return insights.get_component(
-            resource_group_name=resourceGroupName, resource_name=resourceGroupName
+        return self.find_azure_resource_by_name_prefix(
+            resourceGroupName,
+            AppInsights.name_for(
+                self.event.stack_name, self.event.project_name, self.event.location
+            ),
+            AppInsights.type,
         )
 
     def get_container_registry(
@@ -226,11 +297,12 @@ class UpdateAzureDockerResourcesWithPulumi(UpdateDockerResourcesWithPulumi):
         :return: Such instance.
         :rtype: pulumi_azure_native.containerregistry.AwaitableGetRegistryResult
         """
-        return acr.get_registry(
-            resource_group_name=resourceGroupName,
-            registry_name=ContainerRegistry.name_for(
+        return self.find_azure_resource_by_name_prefix(
+            resourceGroupName,
+            ContainerRegistry.name_for(
                 self.event.stack_name, self.event.project_name, self.event.location
             ),
+            ContainerRegistry.type,
         )
 
     def get_storage_account(
@@ -243,11 +315,12 @@ class UpdateAzureDockerResourcesWithPulumi(UpdateDockerResourcesWithPulumi):
         :return: Such instance.
         :rtype: pulumi_azure_native.storage.AwaitableGetStorageAccountResult
         """
-        return storage.get_storage_account(
-            resource_group_name=resourceGroupName,
-            account_name=FunctionStorageAccount.name_for(
+        return self.find_azure_resource_by_name_prefix(
+            resourceGroupName,
+            FunctionStorageAccount.name_for(
                 self.event.stack_name, self.event.project_name, self.event.location
             ),
+            FunctionStorageAccount.type,
         )
 
     def get_app_service_plan(
@@ -260,11 +333,12 @@ class UpdateAzureDockerResourcesWithPulumi(UpdateDockerResourcesWithPulumi):
         :return: Such instance.
         :rtype: pulumi_azure_native.web.AwaitableGetAppServicePlanResult
         """
-        return web.get_app_service_plan(
-            resource_group_name=resourceGroupName,
-            name=AppServicePlan.name_for(
+        return self.find_azure_resource_by_name_prefix(
+            resourceGroupName,
+            AppServicePlan.name_for(
                 self.event.stack_name, self.event.project_name, self.event.location
             ),
+            AppServicePlan.type,
         )
 
 
