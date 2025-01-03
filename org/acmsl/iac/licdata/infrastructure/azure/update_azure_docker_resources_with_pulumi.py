@@ -32,9 +32,6 @@ import pulumi_azure_native.storage as storage
 import pulumi_azure_native.web as web
 from pythoneda.shared import Event, EventEmitter
 from pythoneda.shared.artifact.events import (
-    DockerImageAvailable,
-    DockerImagePushed,
-    DockerImagePushRequested,
     DockerImageRequested,
 )
 from pythoneda.shared.iac.events import (
@@ -48,7 +45,9 @@ from pythoneda.shared.iac.pulumi.azure import (
     DockerPullRoleAssignment,
     DockerPullRoleDefinition,
     FunctionStorageAccount,
+    Outputs,
     ResourceGroup,
+    StorageAccount,
     WebApp,
 )
 from typing import Dict, List
@@ -73,10 +72,21 @@ class UpdateAzureDockerResourcesWithPulumi(UpdateDockerResourcesWithPulumi):
         :param event: The update request.
         :type event: pythoneda.shared.iac.events.DockerResourcesUpdateRequested
         """
-        super().__init__(event)
         self._docker_pull_role_definition = None
         self._docker_pull_role_assignment = None
         self._web_app = None
+        self._update_azure_infrastructure_with_pulumi = (
+            UpdateAzureInfrastructureWithPulumi(
+                InfrastructureUpdateRequested(
+                    event.stack_name,
+                    event.project_name,
+                    event.location,
+                    event.metadata,
+                    [event.id] + event.previous_event_ids,
+                )
+            )
+        )
+        super().__init__(event)
 
     @classmethod
     def instantiate(cls):
@@ -149,23 +159,40 @@ class UpdateAzureDockerResourcesWithPulumi(UpdateDockerResourcesWithPulumi):
 
         result = None
 
-        credential = DefaultAzureCredential()
+        credential = ClientSecretCredential(tenant_id, app_id, password)
         subscription_id = self.event.metadata.get("azure_subscription_id", None)
         resource_client = ResourceManagementClient(credential, subscription_id)
 
-        resources = resource_client.resources.list_by_resource_group(resourceGroupName)
+        print(
+            f"Using ResourceManagementClient(ClientSecretCredential(tenant, app, password), subscription_id)"
+        )
 
-        filtered_resources = [
-            res
-            for res in resources
-            if res.type.lower() == resource_type.lower()
-            and res.name.startswith(namePrefix)
-        ]
+        try:
+            resources = resource_client.resources.list_by_resource_group(
+                resourceGroupName
+            )
 
-        if len(filtered_resources) > 0:
-            result = filtered_resources[0]
+            filtered_resources = [
+                res
+                for res in resources
+                if res.type.lower() == resource_type.lower()
+                and res.name.startswith(namePrefix)
+            ]
+
+            if len(filtered_resources) > 0:
+                result = filtered_resources[0]
+        except Error as e:
+            print(e)
 
         return result
+
+    def declare_infrastructure(self) -> Event:
+        """
+        Declares the infrastructure resources.
+        :return: Either a InfrastructureUpdated or a InfrastructureUpdateFailed
+        :rtype: Event
+        """
+        return self._update_azure_infrastructure_with_pulumi.declare_infrastructure()
 
     def declare_docker_resources(self) -> List[Event]:
         """
@@ -173,24 +200,8 @@ class UpdateAzureDockerResourcesWithPulumi(UpdateDockerResourcesWithPulumi):
         :return: Either a DockerResourcesUpdated or DockerResourcesUpdateFailed event.
         :rtype: List[Event]
         """
-        UpdateAzureInfrastructureWithPulumi.logger().debug(
+        UpdateAzureDockerResourcesWithPulumi.logger().debug(
             "Creating remaining Azure resources (WebApp, DockerPullRoleDefinition, DockerPullRoleAssignment)"
-        )
-
-        UpdateAzureInfrastructureWithPulumi.logger().info(
-            f"metadata available: {self.event.metadata}"
-        )
-
-        resource_group = self.get_resource_group()
-        app_insights = self.get_app_insights(resource_group.name)
-        container_registry = self.get_container_registry(resource_group.name)
-        function_storage_account = self.get_function_storage_account(
-            resource_group.name
-        )
-        app_service_plan = self.get_app_service_plan(resource_group.name)
-
-        login_server = self.update_azure_resources_with_pulumi.container_registry.login_server.apply(
-            lambda name: name
         )
 
         self._web_app = WebApp(
@@ -199,146 +210,31 @@ class UpdateAzureDockerResourcesWithPulumi(UpdateDockerResourcesWithPulumi):
             self.event.location,
             self.event.image_name,
             self.event.image_version,
-            login_server,
+            self._update_azure_infrastructure_with_pulumi.container_registry.login_server.apply(
+                lambda name: name
+            ),
             None,
-            app_insights,
-            function_storage_account,
-            app_service_plan,
-            container_registry,
-            resource_group,
+            self._update_azure_infrastructure_with_pulumi.app_insights,
+            self._update_azure_infrastructure_with_pulumi.function_storage_account,
+            self._update_azure_infrastructure_with_pulumi.app_service_plan,
+            self._update_azure_infrastructure_with_pulumi.container_registry,
+            self._update_azure_infrastructure_with_pulumi.resource_group,
         )
-        self._web_app.create()
-
-        UpdateAzureDockerResourcesWithPulumi.logger().debug(
-            f"WebApp created: {self._web_app}"
-        )
-
         self._docker_pull_role_definition = DockerPullRoleDefinition(
             self.event.stack_name,
             self.event.project_name,
             self.event.location,
-            container_registry,
-            resource_group,
+            self._update_azure_infrastructure_with_pulumi.container_registry,
+            self._update_azure_infrastructure_with_pulumi.resource_group,
         )
-        self._docker_pull_role_definition.create()
-
         self._docker_pull_role_assignment = DockerPullRoleAssignment(
             self.event.stack_name,
             self.event.project_name,
             self.event.location,
             self._web_app,
             self._docker_pull_role_definition,
-            container_registry,
-            resource_group,
-        )
-        self._docker_pull_role_assignment.create()
-
-    def get_resource_group(self) -> resources.AwaitableGetResourceGroupResult:
-        """
-        Retrieves the Resource Group.
-        :return: Such instance.
-        :rtype: pythoneda.iac.pulumi.azure.ResourceGroup
-        """
-        # Initialize Azure client
-        credential = DefaultAzureCredential()
-        resource_client = ResourceManagementClient(
-            credential, self.event.metadata.get("azure_subscription_id", None)
-        )
-
-        # List all resource groups
-        resource_groups = resource_client.resource_groups.list()
-
-        # Filter resource groups by prefix, stack name, stage, and location
-        matching_groups = [
-            rg
-            for rg in resource_groups
-            if rg.name.startswith(
-                ResourceGroup.name_for(
-                    self.event.stack_name, self.event.project_name, self.event.location
-                )
-            )
-            and self.event.stack_name in rg.name
-            and self.event.location.lower() == rg.location.lower()
-        ]
-
-        if not matching_groups:
-            raise Exception(
-                f"No matching resource group found for prefix '{prefix}' in location '{location}'."
-            )
-
-        # Return the first matching resource group
-        return matching_groups[0]
-
-    def get_app_insights(
-        self, resourceGroupName: str
-    ) -> insights.AwaitableGetComponentResult:
-        """
-        Retrieves an Application Insights instance.
-        :param resourceGroupName: The resource group name.
-        :type resourceGroupName: str
-        :return: Such instance.
-        :rtype: pulumi_azure_native.insights.AwaitableGetcomponentResult
-        """
-        return self.find_azure_resource_by_name_prefix(
-            resourceGroupName,
-            AppInsights.name_for(
-                self.event.stack_name, self.event.project_name, self.event.location
-            ),
-            AppInsights.type,
-        )
-
-    def get_container_registry(
-        self, resourceGroupName: str
-    ) -> acr.AwaitableGetRegistryResult:
-        """
-        Retrieves a Container Registry instance.
-        :param resourceGroupName: The resource group name.
-        :type resourceGroupName: str
-        :return: Such instance.
-        :rtype: pulumi_azure_native.containerregistry.AwaitableGetRegistryResult
-        """
-        return self.find_azure_resource_by_name_prefix(
-            resourceGroupName,
-            ContainerRegistry.name_for(
-                self.event.stack_name, self.event.project_name, self.event.location
-            ),
-            ContainerRegistry.type,
-        )
-
-    def get_storage_account(
-        self, resourceGroupName: str
-    ) -> storage.AwaitableGetStorageAccountResult:
-        """
-        Retrieves a Storage Account instance.
-        :param resourceGroupName: The resource group name.
-        :type resourceGroupName: str
-        :return: Such instance.
-        :rtype: pulumi_azure_native.storage.AwaitableGetStorageAccountResult
-        """
-        return self.find_azure_resource_by_name_prefix(
-            resourceGroupName,
-            FunctionStorageAccount.name_for(
-                self.event.stack_name, self.event.project_name, self.event.location
-            ),
-            FunctionStorageAccount.type,
-        )
-
-    def get_app_service_plan(
-        self, resourceGroupName: str
-    ) -> web.AwaitableGetAppServicePlanResult:
-        """
-        Retrieves an App Service Plan instance.
-        :param resourceGroupName: The resource group name.
-        :type resourceGroupName: str
-        :return: Such instance.
-        :rtype: pulumi_azure_native.web.AwaitableGetAppServicePlanResult
-        """
-        return self.find_azure_resource_by_name_prefix(
-            resourceGroupName,
-            AppServicePlan.name_for(
-                self.event.stack_name, self.event.project_name, self.event.location
-            ),
-            AppServicePlan.type,
+            self._update_azure_infrastructure_with_pulumi.container_registry,
+            self._update_azure_infrastructure_with_pulumi.resource_group,
         )
 
 

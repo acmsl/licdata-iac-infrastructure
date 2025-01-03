@@ -84,13 +84,11 @@ class UpdateInfrastructureWithPulumi(UpdateInfrastructure, abc.ABC):
             self.__class__.logger().info(
                 f"update summary: \n{json.dumps(self.outcome.summary.resource_changes, indent=4)}"
             )
-            metadata = self.event.metadata.copy()
-            metadata.update(await self.retrieve_container_registry_credentials())
             event = InfrastructureUpdated(
                 self.event.stack_name,
                 self.event.project_name,
                 self.event.location,
-                metadata,
+                self.event.metadata,
                 [self.event.id] + self.event.previous_event_ids,
             )
             result.append(event)
@@ -102,7 +100,7 @@ class UpdateInfrastructureWithPulumi(UpdateInfrastructure, abc.ABC):
                     self.event.stack_name,
                     self.event.project_name,
                     self.event.location,
-                    metadata,
+                    self.event.metadata,
                     [self.event.id] + self.event.previous_event_ids,
                 )
             )

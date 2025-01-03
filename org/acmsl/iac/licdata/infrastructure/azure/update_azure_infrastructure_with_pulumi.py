@@ -25,12 +25,6 @@ from .licdata_web_app import LicdataWebApp
 from org.acmsl.iac.licdata.infrastructure import UpdateInfrastructureWithPulumi
 from pulumi import Output
 from pythoneda.shared import Event, EventEmitter
-from pythoneda.shared.artifact.events import (
-    DockerImageAvailable,
-    DockerImagePushed,
-    DockerImagePushRequested,
-    DockerImageRequested,
-)
 from pythoneda.shared.iac.events import InfrastructureUpdateRequested
 from pythoneda.shared.iac.pulumi.azure import (
     AppInsights,
@@ -42,6 +36,7 @@ from pythoneda.shared.iac.pulumi.azure import (
     DockerPullRoleAssignment,
     DockerPullRoleDefinition,
     FunctionStorageAccount,
+    Outputs,
     PublicIpAddress,
     ResourceGroup,
     WebApp,
@@ -68,7 +63,6 @@ class UpdateAzureInfrastructureWithPulumi(UpdateInfrastructureWithPulumi):
         :param event: The request.
         :type event: pythoneda.shared.iac.events.InfrastructureUpdateRequested
         """
-        super().__init__(event)
         self._resource_group = None
         self._function_storage_account = None
         self._app_service_plan = None
@@ -81,6 +75,7 @@ class UpdateAzureInfrastructureWithPulumi(UpdateInfrastructureWithPulumi):
         self._container_registry = None
         self._webapp_deployment_slot = None
         self._app_insights = None
+        super().__init__(event)
 
     @classmethod
     def instantiate(cls):
@@ -199,7 +194,6 @@ class UpdateAzureInfrastructureWithPulumi(UpdateInfrastructureWithPulumi):
         self._resource_group = ResourceGroup(
             self.event.stack_name, self.event.project_name, self.event.location
         )
-        self._resource_group.create()
 
         self._function_storage_account = FunctionStorageAccount(
             self.event.stack_name,
@@ -207,7 +201,6 @@ class UpdateAzureInfrastructureWithPulumi(UpdateInfrastructureWithPulumi):
             self.event.location,
             self._resource_group,
         )
-        self._function_storage_account.create()
 
         self._app_service_plan = AppServicePlan(
             self.event.stack_name,
@@ -220,7 +213,6 @@ class UpdateAzureInfrastructureWithPulumi(UpdateInfrastructureWithPulumi):
             None,
             self._resource_group,
         )
-        self._app_service_plan.create()
 
         # self._public_ip_address = PublicIpAddress(self.stack_name, self.project_name, self.location, self._resource_group)
         # self._dns_zone = DnsZone(self.stack_name, self.project_name, self.location, self._resource_group)
@@ -246,7 +238,6 @@ class UpdateAzureInfrastructureWithPulumi(UpdateInfrastructureWithPulumi):
             None,
             self._resource_group,
         )
-        self._app_insights.create()
 
         self._container_registry = ContainerRegistry(
             self.event.stack_name,
@@ -256,7 +247,6 @@ class UpdateAzureInfrastructureWithPulumi(UpdateInfrastructureWithPulumi):
             None,
             self._resource_group,
         )
-        self._container_registry.create()
 
     async def retrieve_container_registry_credentials(self) -> Dict[str, str]:
         """
@@ -264,14 +254,17 @@ class UpdateAzureInfrastructureWithPulumi(UpdateInfrastructureWithPulumi):
         :return: A dictionary with the credentials.
         :rtype: Dict[str, str]
         """
-        UpdateAzureInfrastructureWithPulumi.logger().debug(self.outcome.outputs)
-        username = self.outcome.outputs.get("container_registry_username", None)
+        username = self.outcome.outputs.get(
+            Outputs.CONTAINER_REGISTRY_USERNAME.value, None
+        )
         if username is not None:
             username = username.value
-        password = self.outcome.outputs.get("container_registry_password", None)
+        password = self.outcome.outputs.get(
+            Outputs.CONTAINER_REGISTRY_PASSWORD.value, None
+        )
         if password is not None:
             password = password.value
-        url = self.outcome.outputs.get("container_registry_url", None)
+        url = self.outcome.outputs.get(Outputs.CONTAINER_REGISTRY_URL.value, None)
         if url is not None:
             url = url.value
 

@@ -60,9 +60,15 @@ class UpdateDockerResourcesWithPulumi(UpdateDockerResources, abc.ABC):
         :return: Either a DockerResourcesUpdated or a DockerResourcesUpdateFailed
         :rtype: Event
         """
-        UpdateDockerResourcesWithPulumi.logger().info(
-            "doing nothing in declare_docker_resources()"
-        )
+        pass
+
+    @abc.abstractmethod
+    def declare_infrastructure(self) -> Event:
+        """
+        Declares the infrastructure resources.
+        :return: Either a InfrastructureUpdated or a InfrastructureUpdateFailed
+        :rtype: Event
+        """
         pass
 
     async def perform(self) -> Event:
@@ -75,21 +81,15 @@ class UpdateDockerResourcesWithPulumi(UpdateDockerResources, abc.ABC):
         """
 
         def declare_docker_resources_wrapper():
+            self.declare_infrastructure()
             return self.declare_docker_resources()
 
         result = None
 
-        UpdateDockerResourcesWithPulumi.logger().info(
-            f"create_or_select_stack({self.event})"
-        )
         stack = auto.create_or_select_stack(
-            #            stack_name=f"{self.event.stack_name}-docker",
             stack_name=self.event.stack_name,
             project_name=self.event.project_name,
             program=declare_docker_resources_wrapper,
-        )
-        UpdateDockerResourcesWithPulumi.logger().info(
-            f"create_or_select_stack({self.event}) finished"
         )
 
         # stack.workspace.install_plugin("azure-native", "v2.11.0")
@@ -97,11 +97,9 @@ class UpdateDockerResourcesWithPulumi(UpdateDockerResources, abc.ABC):
             "azure-native:location", auto.ConfigValue(value=self.event.location)
         )
         stack.refresh(on_output=self.__class__.logger().debug)
-        UpdateDockerResourcesWithPulumi.logger().info("stack.refresh() finished")
 
         try:
             self._outcome = stack.up(on_output=self.__class__.logger().debug)
-            UpdateDockerResourcesWithPulumi.logger().info("stack.up() finished")
             import json
 
             self.__class__.logger().info(
