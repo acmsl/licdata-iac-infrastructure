@@ -105,22 +105,39 @@ class UpdateDockerResourcesWithPulumi(UpdateDockerResources, abc.ABC):
             self.__class__.logger().info(
                 f"update summary: \n{json.dumps(self.outcome.summary.resource_changes, indent=4)}"
             )
-            result = DockerResourcesUpdated(
-                event.stack_name,
-                event.project_name,
-                event.location,
-                [event.id] + event.previous_event_ids,
-            )
+            result = self._build_DockerResourcesUpdated_from_outcome(self._outcome)
         except CommandError as e:
             self.__class__.logger().error(f"CommandError: {e}")
-            result = DockerResourcesUpdateFailed(
-                event.stack_name,
-                event.project_name,
-                event.location,
-                [event.id] + event.previous_event_ids,
-            )
+            result = self._build_DockerResourcesUpdateFailed()
 
         return result
+
+    @abc.abstractmethod
+    def _build_DockerResourcesUpdated_from_outcome(
+        self, outcome: auto.UpResult
+    ) -> DockerResourcesUpdated:
+        """
+        Builds a DockerResourcesUpdated event from the outcome.
+        :param outcome: The outcome.
+        :type outcome: auto.UpResult
+        :return: A DockerResourcesUpdated event.
+        :rtype: pythoneda.shared.iac.events.DockerResourcesUpdated
+        """
+        pass
+
+    def _build_DockerResourcesUpdateFailed(self) -> DockerResourcesUpdateFailed:
+        """
+        Builds a DockerResourcesUpdateFailed event.
+        :return: A DockerResourcesUpdateFailed event.
+        :rtype: pythoneda.shared.iac.events.DockerResourcesUpdateFailed
+        """
+        return DockerResourcesUpdateFailed(
+            self.event.stack_name,
+            self.event.project_name,
+            self.event.location,
+            self.event.metadata,
+            [self.event.id] + self.event.previous_event_ids,
+        )
 
 
 # vim: syntax=python ts=4 sw=4 sts=4 tw=79 sr et

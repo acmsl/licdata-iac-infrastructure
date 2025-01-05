@@ -25,6 +25,7 @@ from .licdata_web_app import LicdataWebApp
 from .update_azure_infrastructure_with_pulumi import UpdateAzureInfrastructureWithPulumi
 from org.acmsl.iac.licdata.infrastructure import UpdateDockerResourcesWithPulumi
 import pulumi
+from pulumi import automation as auto
 import pulumi_azure_native.resources as resources
 import pulumi_azure_native.insights as insights
 import pulumi_azure_native.containerregistry as acr
@@ -36,6 +37,7 @@ from pythoneda.shared.artifact.events import (
 )
 from pythoneda.shared.iac.events import (
     InfrastructureUpdateRequested,
+    DockerResourcesUpdated,
     DockerResourcesUpdateRequested,
 )
 from pythoneda.shared.iac.pulumi.azure import (
@@ -235,6 +237,28 @@ class UpdateAzureDockerResourcesWithPulumi(UpdateDockerResourcesWithPulumi):
             self._docker_pull_role_definition,
             self._update_azure_infrastructure_with_pulumi.container_registry,
             self._update_azure_infrastructure_with_pulumi.resource_group,
+        )
+
+    def _build_DockerResourcesUpdated_from_outcome(
+        self, outcome: auto.UpResult
+    ) -> DockerResourcesUpdated:
+        """
+        Builds a DockerResourcesUpdated event from the outcome.
+        :param outcome: The outcome.
+        :type outcome: auto.UpResult
+        :return: A DockerResourcesUpdated event.
+        :rtype: pythoneda.shared.iac.events.DockerResourcesUpdated
+        """
+        metadata = self.event.metadata.copy()
+        metadata[Outputs.API_DOMAIN.value] = outcome.outputs[
+            Outputs.API_DOMAIN.value
+        ].value
+        result = DockerResourcesUpdated(
+            self.event.stack_name,
+            self.event.project_name,
+            self.event.location,
+            metadata,
+            [self.event.id] + self.event.previous_event_ids,
         )
 
 
